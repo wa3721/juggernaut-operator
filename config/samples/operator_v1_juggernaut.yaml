@@ -1,0 +1,23 @@
+apiVersion: operator.oceanoperator.com/v1
+kind: Juggernaut
+metadata:
+  labels:
+    app.kubernetes.io/name: juggernaut
+    app.kubernetes.io/managed-by: kustomize
+  name: juggernaut-sample
+  namespace: juggernaut-operator
+spec:
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 10m
+      memory: 50Mi
+  service:
+    Type: ClusterIp
+  config:
+    overwrite:
+      configmap:
+       name: juggernaut-operator/juggernaut-config
+

@@ -1,0 +1,23 @@
+# permissions for end users to view juggernauts.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: juggernaut
+    app.kubernetes.io/managed-by: kustomize
+  name: juggernaut-viewer-role
+rules:
+- apiGroups:
+  - operator.oceanoperator.com
+  resources:
+  - juggernauts
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - operator.oceanoperator.com
+  resources:
+  - juggernauts/status
+  verbs:
+  - get
