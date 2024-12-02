@@ -32,27 +32,13 @@ type JuggernautSpec struct {
 	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
 	//svc的类型
 	Service JuggernautService `json:"service,omitempty"`
-	//configmap修改
-	// +optional
-	Config JuggernautConfig `json:"config,omitempty"`
+	//image
+	Image string `json:"image,omitempty"`
 }
 type JuggernautService struct {
-	//configmap修改
-	// +optional
+	//service修改
 	Type corev1.ServiceType `json:"type,omitempty"`
 }
-
-type JuggernautConfig struct {
-	//configmap修改
-	// +optional
-	Overwrite JuggernautConfigmap `json:"overwrite,omitempty"`
-}
-type JuggernautConfigmap struct {
-	//configmap修改
-	Name NamespacedName `json:"name"`
-}
-
-type NamespacedName string
 
 // JuggernautStatus defines the observed state of Juggernaut.
 type JuggernautStatus struct {

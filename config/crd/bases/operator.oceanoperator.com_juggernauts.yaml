@@ -39,19 +39,9 @@ spec:
           spec:
             description: JuggernautSpec defines the desired state of Juggernaut.
             properties:
-              config:
-                description: configmap修改
-                properties:
-                  overwrite:
-                    description: configmap修改
-                    properties:
-                      name:
-                        description: configmap修改
-                        type: string
-                    required:
-                    - name
-                    type: object
-                type: object
+              image:
+                description: image
+                type: string
               resources:
                 description: |-
                   INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
@@ -118,7 +108,7 @@ spec:
                 description: svc的类型
                 properties:
                   type:
-                    description: configmap修改
+                    description: service修改
                     type: string
                 type: object
             type: object

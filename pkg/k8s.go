@@ -3,12 +3,12 @@ package k8s
 import (
 	"encoding/json"
 	operatorv1 "juggernaut/api/v1"
-	"strings"
-
 	appv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/intstr"
+	"os"
 )
 
 const (
@@ -31,7 +31,7 @@ func NewDeployment(juggernaut *operatorv1.Juggernaut) (*appv1.Deployment, error)
 			APIVersion: "apps/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      juggernaut.Name,
+			Name:      juggernaut.Name + "-deployment",
 			Namespace: juggernaut.Namespace,
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(juggernaut, schema.GroupVersionKind{
@@ -40,6 +40,7 @@ func NewDeployment(juggernaut *operatorv1.Juggernaut) (*appv1.Deployment, error)
 					Kind:    "Juggernaut",
 				}),
 			},
+			Labels: LabelsForJuggernaut(juggernaut.Name),
 		},
 		Spec: appv1.DeploymentSpec{
 			Replicas: &defaultReplicas,
@@ -52,24 +53,31 @@ func NewDeployment(juggernaut *operatorv1.Juggernaut) (*appv1.Deployment, error)
 				},
 				Spec: corev1.PodSpec{
 					EnableServiceLinks: func(b bool) *bool { return &b }(false),
-					Containers: append([]corev1.Container{
+					Containers: []corev1.Container{
 						{
 							Name:      "juggernaut",
-							Image:     defaultImage,
+							Image:     juggernaut.Spec.Image,
 							Resources: juggernaut.Spec.Resources,
 							Ports: []corev1.ContainerPort{{
 								ContainerPort: defaultContainerPort,
 								Protocol:      "TCP",
 							}},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      juggernaut.Name + "-configmap",
+									MountPath: "/JUGGERNAUT/config",
+									ReadOnly:  false,
+								},
+							},
 						},
-					}),
+					},
 					Volumes: []corev1.Volume{
 						{
-							Name: transName(juggernaut.Spec.Config.Overwrite.Name),
+							Name: juggernaut.Name + "-configmap",
 							VolumeSource: corev1.VolumeSource{
 								ConfigMap: &corev1.ConfigMapVolumeSource{
 									LocalObjectReference: corev1.LocalObjectReference{
-										Name: transName(juggernaut.Spec.Config.Overwrite.Name),
+										Name: juggernaut.Name + "-configmap",
 									},
 								},
 							},
@@ -86,11 +94,6 @@ func NewDeployment(juggernaut *operatorv1.Juggernaut) (*appv1.Deployment, error)
 	}
 
 	return &deployment, nil
-}
-
-func transName(name operatorv1.NamespacedName) string {
-	a := strings.Split(string(name), "/")
-	return a[1]
 }
 
 // LabelsForJuggernaut returns the labels for a juggernaut CR with the given name
@@ -116,11 +119,69 @@ func SetJuggernautSpec(o *metav1.ObjectMeta, spec operatorv1.JuggernautSpec) err
 
 // NewService 实现一个根据juggernaut对象生成的service对象
 func NewService(juggernaut *operatorv1.Juggernaut) *corev1.Service {
-
+	service := corev1.Service{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Service",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      juggernaut.Name + "-service",
+			Namespace: juggernaut.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(juggernaut, schema.GroupVersionKind{
+					Group:   operatorv1.GroupVersion.Group,
+					Version: operatorv1.GroupVersion.Version,
+					Kind:    "Juggernaut",
+				}),
+			},
+		},
+		Spec: corev1.ServiceSpec{
+			Selector: LabelsForJuggernaut(juggernaut.Name),
+			Type:     juggernaut.Spec.Service.Type,
+			Ports: []corev1.ServicePort{
+				{
+					Port:       int32(8080),
+					Protocol:   "TCP",
+					TargetPort: intstr.FromInt32(defaultContainerPort),
+				},
+			},
+		},
+	}
+	return &service
 }
 
-//  实现一个根据juggernaut对象生成的service对象
+//  实现一个根据juggernaut对象生成的configmap对象
 
 func NewConfigmap(juggernaut *operatorv1.Juggernaut) *corev1.ConfigMap {
-
+	//默认对象
+	configmap := corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ConfigMap",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      juggernaut.Name + "-configmap",
+			Namespace: juggernaut.Namespace,
+			OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(juggernaut, schema.GroupVersionKind{
+				Group:   operatorv1.GroupVersion.Group,
+				Version: operatorv1.GroupVersion.Version,
+				Kind:    "Juggernaut",
+			})},
+		},
+		Data: defaultConfigMapData,
+	}
+	return &configmap
 }
+
+func readDefaultConfig() (a string) {
+	file, err := os.ReadFile("./config.yaml")
+	if err != nil {
+		return
+	}
+	a = string(file)
+	return a
+}
+
+var (
+	defaultConfigMapData = map[string]string{"config.yaml": readDefaultConfig()}
+)
