@@ -17,4 +17,8 @@ spec:
       memory: 50Mi
   service:
     type: ClusterIP
+#  config:
+#    overwrite:
+#      name: config-update
+
 

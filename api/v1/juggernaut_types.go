@@ -21,6 +21,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	SUCCESS = "SUCCESS"
+	FAILURE = "FAILURE"
+)
+
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
@@ -34,7 +39,21 @@ type JuggernautSpec struct {
 	Service JuggernautService `json:"service,omitempty"`
 	//image
 	Image string `json:"image,omitempty"`
+	//config
+	//+optional
+	Config JuggernautConfig `json:"config,omitempty"`
 }
+
+type JuggernautConfig struct {
+	//+optional
+	Overwrite JuggernautOverwrite `json:"overwrite,omitempty"`
+}
+
+type JuggernautOverwrite struct {
+	//+optional
+	Name string `json:"name,omitempty"`
+}
+
 type JuggernautService struct {
 	//service修改
 	Type corev1.ServiceType `json:"type,omitempty"`
@@ -44,10 +63,12 @@ type JuggernautService struct {
 type JuggernautStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+	Status string `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Status",type="string",JSONPath=`.status.status`
 
 // Juggernaut is the Schema for the juggernauts API.
 type Juggernaut struct {

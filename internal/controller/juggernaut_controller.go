@@ -83,23 +83,45 @@ func (r *JuggernautReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 func (r *JuggernautReconciler) reconcileJuggernaut(ctx context.Context, juggernaut *operatorv1.Juggernaut) error {
 	if err := r.reconcileDeployment(ctx, juggernaut); err != nil {
+		juggernaut.Status.Status = operatorv1.FAILURE
+		r.Status().Update(ctx, juggernaut)
 		return err
 	}
 
 	if err := r.reconcileService(ctx, juggernaut); err != nil {
+		juggernaut.Status.Status = operatorv1.FAILURE
+		r.Status().Update(ctx, juggernaut)
 		return err
 	}
 
 	if err := r.reconcileConfigmap(ctx, juggernaut); err != nil {
+		juggernaut.Status.Status = operatorv1.FAILURE
+		r.Status().Update(ctx, juggernaut)
 		return err
 	}
-
+	juggernaut.Status.Status = operatorv1.SUCCESS
+	r.Status().Update(ctx, juggernaut)
 	return nil
 }
 
 // 调谐deployment
 func (r *JuggernautReconciler) reconcileDeployment(ctx context.Context, juggernaut *operatorv1.Juggernaut) error {
+	var namedConfigmap corev1.ConfigMap
 	newDeploy, err := k8s.NewDeployment(juggernaut)
+	if juggernaut.Spec.Config.Overwrite.Name != "" {
+		err := r.Client.Get(ctx, types.NamespacedName{Name: juggernaut.Spec.Config.Overwrite.Name, Namespace: juggernaut.Namespace}, &namedConfigmap)
+		if errors.IsNotFound(err) {
+			klog.Infof("configmap not found,please create it")
+		}
+		if err != nil {
+			return fmt.Errorf("failed to retrieve configmap: %w", err)
+		}
+		//更新newDeploy对象
+		newDeploy.Spec.Template.Spec.Containers[0].VolumeMounts[0].Name = juggernaut.Spec.Config.Overwrite.Name
+		newDeploy.Spec.Template.Spec.Volumes[0].Name = juggernaut.Spec.Config.Overwrite.Name
+		newDeploy.Spec.Template.Spec.Volumes[0].VolumeSource.ConfigMap.LocalObjectReference.Name = juggernaut.Spec.Config.Overwrite.Name
+	}
+
 	if err != nil {
 		return fmt.Errorf("failed to build Deployment from Nginx: %w", err)
 	}
@@ -159,6 +181,19 @@ func (r *JuggernautReconciler) reconcileService(ctx context.Context, juggernaut 
 
 // 调谐configmap
 func (r *JuggernautReconciler) reconcileConfigmap(ctx context.Context, juggernaut *operatorv1.Juggernaut) error {
+	var namedConfigmap corev1.ConfigMap
+	//判断是否指定了configmap：
+	//指定了configmap
+	if juggernaut.Spec.Config.Overwrite.Name != "" {
+		err := r.Client.Get(ctx, types.NamespacedName{Name: juggernaut.Spec.Config.Overwrite.Name, Namespace: juggernaut.Namespace}, &namedConfigmap)
+		if errors.IsNotFound(err) {
+			klog.Infof("configmap not found,please create it")
+		}
+		if err != nil {
+			return fmt.Errorf("failed to retrieve configmap: %w", err)
+		}
+		return nil
+	}
 	//默认的configmap
 	//根据juggernaut名字+configmap生成//挂载到deployment
 	newConfigmap := k8s.NewConfigmap(juggernaut)
@@ -174,6 +209,7 @@ func (r *JuggernautReconciler) reconcileConfigmap(ctx context.Context, juggernau
 		klog.Infof("configmap skip sync")
 		return nil
 	}
+
 	if !equality.Semantic.DeepEqual(newConfigmap.Data, currentConfigmap.Data) {
 		// 如果有差异，则通过Client.Patch更新currentDeploy
 		patch := client.StrategicMergeFrom(currentConfigmap.DeepCopy())
